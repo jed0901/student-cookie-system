@@ -6,7 +6,7 @@ export interface HistoryEntry {
 }
 
 export interface Student {
-  id: string;
+  id:string;
   name: string;
   count: number;
   history: HistoryEntry[];

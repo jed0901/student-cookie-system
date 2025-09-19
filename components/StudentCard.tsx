@@ -8,9 +8,11 @@ interface StudentCardProps {
   onUpdate: (student: Student) => void;
   onDelete: (studentId: string) => void;
   viewMode: ViewMode;
+  isSelected: boolean;
+  onToggleSelection: (studentId: string) => void;
 }
 
-const StudentCard: React.FC<StudentCardProps> = ({ student, onUpdate, onDelete, viewMode }) => {
+const StudentCard: React.FC<StudentCardProps> = ({ student, onUpdate, onDelete, viewMode, isSelected, onToggleSelection }) => {
   const [change, setChange] = useState<number>(1);
   const [reason, setReason] = useState('');
   const [isHistoryVisible, setHistoryVisible] = useState(false);
@@ -52,18 +54,35 @@ const StudentCard: React.FC<StudentCardProps> = ({ student, onUpdate, onDelete, 
 
   const countColor = student.count > 0 ? 'text-green-500' : student.count < 0 ? 'text-red-500' : 'text-slate-500 dark:text-slate-400';
 
+  const cardClickHandler = () => {
+    if (viewMode === 'teacher') {
+      onToggleSelection(student.id);
+    }
+  };
+
   return (
     <>
-      <div className={`bg-white dark:bg-slate-800 rounded-lg shadow-lg overflow-hidden flex flex-col ${isReadOnly ? '' : 'transition-shadow hover:shadow-xl'}`}>
+      <div 
+        className={`bg-white dark:bg-slate-800 rounded-lg shadow-lg overflow-hidden flex flex-col transition-all duration-200 ${isSelected ? 'ring-2 ring-indigo-500 shadow-indigo-200 dark:shadow-indigo-900/40' : 'hover:shadow-xl'} ${viewMode === 'teacher' ? 'cursor-pointer' : ''}`}
+        onClick={cardClickHandler}
+      >
         <div className="p-5 flex-grow">
           <div className="flex justify-between items-start">
             <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100">{student.name}</h2>
-            <div className="flex items-center gap-2">
-              <button onClick={() => setHistoryVisible(true)} className="text-slate-400 hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors" title="변경 이력 보기">
+            <div className="flex items-center gap-3">
+               {viewMode === 'teacher' && (
+                <div 
+                  className={`w-6 h-6 rounded-md border-2 ${isSelected ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300 dark:border-slate-500'} flex items-center justify-center transition-colors`}
+                  aria-hidden="true"
+                >
+                  {isSelected && <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>}
+                </div>
+              )}
+              <button onClick={(e) => { e.stopPropagation(); setHistoryVisible(true); }} className="text-slate-400 hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors" title="변경 이력 보기">
                 <HistoryIcon className="w-5 h-5" />
               </button>
               {viewMode === 'teacher' && (
-                <button onClick={() => onDelete(student.id)} className="text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition-colors" title="학생 삭제">
+                <button onClick={(e) => { e.stopPropagation(); onDelete(student.id); }} className="text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition-colors" title="학생 삭제">
                   <TrashIcon className="w-5 h-5" />
                 </button>
               )}
@@ -73,7 +92,7 @@ const StudentCard: React.FC<StudentCardProps> = ({ student, onUpdate, onDelete, 
             {student.count}
           </p>
           {viewMode !== 'student' && (
-            <form className="space-y-3" onSubmit={(e) => e.preventDefault()}>
+            <form className="space-y-3" onSubmit={(e) => e.preventDefault()} onClick={e => e.stopPropagation()}>
               <div>
                 <label htmlFor={`reason-${student.id}`} className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">사유</label>
                 <input

@@ -15,12 +15,18 @@ interface HeaderProps {
   onRequestAssistantMode: () => void;
   onExitAssistantMode: () => void;
   onOpenSettings: () => void;
+  studentCount?: number;
+  selectedCount?: number;
+  onToggleAllStudents?: () => void;
 }
 
 const Header: React.FC<HeaderProps> = ({ 
   onUndo, canUndo, onExport, onImportClick,
   viewMode, onEnterStudentMode, onEnterOverviewMode, onExitOverviewMode, onRequestTeacherMode, onRequestAssistantMode, onExitAssistantMode,
-  onOpenSettings
+  onOpenSettings,
+  studentCount = 0,
+  selectedCount = 0,
+  onToggleAllStudents,
 }) => {
   const getTitle = () => {
     switch (viewMode) {
@@ -37,6 +43,8 @@ const Header: React.FC<HeaderProps> = ({
     }
   };
 
+  const allSelected = studentCount > 0 && selectedCount === studentCount;
+
   return (
     <header className="bg-white dark:bg-slate-800 shadow-md sticky top-0 z-10">
       <div className="container mx-auto px-4 sm:px-6 md:px-8 py-4 flex justify-between items-center">
@@ -47,6 +55,12 @@ const Header: React.FC<HeaderProps> = ({
         <div className="flex items-center gap-2">
           {viewMode === 'teacher' && (
             <>
+              {studentCount > 0 && (
+                 <button onClick={onToggleAllStudents} title="전체 선택/해제" className="control-button">
+                  <i className={`fa-regular ${allSelected ? 'fa-square-check' : 'fa-square'} mr-2`}></i>
+                  <span className="hidden sm:inline">{allSelected ? '전체 해제' : '전체 선택'}</span>
+                </button>
+              )}
               <button onClick={onImportClick} title="데이터 가져오기 (JSON)" className="control-button">
                 <UploadIcon className="w-4 h-4" />
                 <span className="hidden sm:inline">가져오기</span>

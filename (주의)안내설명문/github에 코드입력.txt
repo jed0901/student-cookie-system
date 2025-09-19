@@ -1,0 +1,6 @@
+git init
+git add .
+git commit -m "Initial commit: 설명"
+git branch -M main
+git remote add origin https://github.com/jed0901/리포지터리이름.git
+git push -u origin main
