@@ -1,0 +1,5 @@
+{
+  "name": "Student Score Tracker",
+  "description": "A simple, offline-first web application for teachers and tutors to manage student scores, points, or material counts. It supports adding/subtracting counts, tracking change history with reasons, and persists all data locally in the browser. It also includes features for undoing the last action and exporting/importing data as a JSON file.",
+  "requestFramePermissions": []
+}
