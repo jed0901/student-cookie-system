@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import type { Student, ViewMode, CombinedHistoryEntry, PinModalMode, PinType, HistoryEntry } from './types';
+import type { Student, ViewMode, CombinedHistoryEntry, PinModalMode, PinType } from './types';
 import Header from './components/Header';
 import StudentCard from './components/StudentCard';
 import AddStudentCard from './components/AddStudentCard';
@@ -8,7 +8,6 @@ import SettingsModal from './components/SettingsModal';
 import AllHistoryModal from './components/AllHistoryModal';
 import ConfirmModal from './components/ConfirmModal';
 import OverviewGrid from './components/OverviewGrid';
-import BulkActionBar from './components/BulkActionBar';
 import { PlusIcon } from './components/icons';
 
 const App: React.FC = () => {
@@ -16,10 +15,9 @@ const App: React.FC = () => {
   const [previousStudents, setPreviousStudents] = useState<Student[] | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
 
   // View mode and PIN state
-  const [viewMode, setViewMode] = useState<ViewMode>('teacher');
+  const [viewMode, setViewMode] = useState<ViewMode>('student');
   const [teacherPin, setTeacherPin] = useState<string | null>(null);
   const [assistantPin, setAssistantPin] = useState<string | null>(null);
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
@@ -104,7 +102,6 @@ const App: React.FC = () => {
 
     if (newStudents.length > 0) {
       updateStateAndUndo(prev => [...newStudents, ...prev]);
-      setSelectedStudentIds([]);
     }
     setIsAdding(false);
   };
@@ -251,6 +248,7 @@ const App: React.FC = () => {
       // Force setting teacher PIN if it doesn't exist
       setPinError('');
       setPinModalMode('set-teacher');
+      setPinTargetMode('student');
       setIsPinModalOpen(true);
     }
   };
@@ -264,10 +262,20 @@ const App: React.FC = () => {
   };
 
   const handleRequestProtectedMode = (mode: 'teacher' | 'assistant') => {
+    if (mode === 'teacher' && !teacherPin) {
+        // Teacher PIN not set, force setting it to enter teacher mode
+        setPinError('');
+        setPinModalMode('set-teacher');
+        setPinTargetMode('teacher');
+        setIsPinModalOpen(true);
+        return;
+    }
+
     if (mode === 'assistant' && !assistantPin) {
       // 보조 PIN이 설정되지 않은 경우, 즉시 설정 모드로 진입
       setPinError('');
       setPinModalMode('set-assistant');
+      setPinTargetMode('assistant');
       setIsPinModalOpen(true);
       return;
     }
@@ -281,14 +289,24 @@ const App: React.FC = () => {
       setViewMode('student');
   };
 
+  const handleClosePinModal = () => {
+    setIsPinModalOpen(false);
+    setPinError('');
+    setPinTargetMode(null);
+  }
+
   const handleSetPin = (newPin: string, type: PinType) => {
     if (type === 'teacher') {
       setTeacherPin(newPin);
-      setViewMode('student'); // Switch to student mode after setting teacher pin
     } else {
       setAssistantPin(newPin);
     }
-    setIsPinModalOpen(false);
+    
+    if (pinTargetMode) {
+      setViewMode(pinTargetMode);
+    }
+
+    handleClosePinModal();
   };
 
   const handleConfirmPin = (enteredPin: string) => {
@@ -299,80 +317,16 @@ const App: React.FC = () => {
       if (pinTargetMode) {
         setViewMode(pinTargetMode);
       }
-      setIsPinModalOpen(false);
-      setPinError('');
-      setPinTargetMode(null);
+      handleClosePinModal();
     } else {
       setPinError('PIN이 올바르지 않습니다.');
     }
   };
 
-  const handleClosePinModal = () => {
-    setIsPinModalOpen(false);
-    setPinError('');
-    setPinTargetMode(null);
-  }
-
   const handleOpenAllHistory = () => {
     setIsSettingsModalOpen(false);
     setIsAllHistoryModalOpen(true);
   }
-
-  const handleToggleStudentSelection = (studentId: string) => {
-    setSelectedStudentIds(prev =>
-      prev.includes(studentId)
-        ? prev.filter(id => id !== studentId)
-        : [...prev, studentId]
-    );
-  };
-
-  const handleSelectAllStudents = () => {
-    setSelectedStudentIds(students.map(s => s.id));
-  };
-
-  const handleDeselectAllStudents = () => {
-    setSelectedStudentIds([]);
-  };
-
-  const handleToggleAllStudents = () => {
-    if (selectedStudentIds.length === students.length) {
-      handleDeselectAllStudents();
-    } else {
-      handleSelectAllStudents();
-    }
-  };
-
-  const handleApplyBulkChange = (change: number, reason: string) => {
-    if (!reason.trim()) {
-      alert("사유를 입력해주세요.");
-      return;
-    }
-    if (change === 0) {
-      return;
-    }
-
-    const timestamp = Date.now();
-    updateStateAndUndo(prevStudents =>
-      prevStudents.map(student => {
-        if (selectedStudentIds.includes(student.id)) {
-          const newHistoryEntry: HistoryEntry = {
-            id: `history-${timestamp}-${student.id}`,
-            timestamp,
-            change,
-            reason: reason.trim(),
-          };
-          return {
-            ...student,
-            count: student.count + change,
-            history: [newHistoryEntry, ...student.history],
-          };
-        }
-        return student;
-      })
-    );
-
-    handleDeselectAllStudents();
-  };
 
   const allHistory = useMemo<CombinedHistoryEntry[]>(() => {
     return students
@@ -397,9 +351,6 @@ const App: React.FC = () => {
         onRequestAssistantMode={() => handleRequestProtectedMode('assistant')}
         onExitAssistantMode={handleExitAssistantMode}
         onOpenSettings={() => setIsSettingsModalOpen(true)}
-        studentCount={students.length}
-        selectedCount={selectedStudentIds.length}
-        onToggleAllStudents={handleToggleAllStudents}
       />
       <input
         type="file"
@@ -408,7 +359,7 @@ const App: React.FC = () => {
         className="hidden"
         accept="application/json"
       />
-      <main className="p-4 sm:p-6 md:p-8 pb-32">
+      <main className="p-4 sm:p-6 md:p-8">
         {viewMode === 'overview' ? (
           students.length > 0 ? (
             <OverviewGrid students={students} />
@@ -430,8 +381,6 @@ const App: React.FC = () => {
                 onUpdate={handleUpdateStudent}
                 onDelete={handleDeleteStudent}
                 viewMode={viewMode}
-                isSelected={selectedStudentIds.includes(student.id)}
-                onToggleSelection={handleToggleStudentSelection}
               />
             ))}
           </div>
@@ -490,15 +439,6 @@ const App: React.FC = () => {
           message={confirmModalState.message}
           confirmText={confirmModalState.confirmText}
           isDestructive={true}
-        />
-      )}
-      {viewMode === 'teacher' && selectedStudentIds.length > 0 && (
-        <BulkActionBar
-          selectedCount={selectedStudentIds.length}
-          totalCount={students.length}
-          onApply={handleApplyBulkChange}
-          onSelectAll={handleSelectAllStudents}
-          onDeselectAll={handleDeselectAllStudents}
         />
       )}
     </div>

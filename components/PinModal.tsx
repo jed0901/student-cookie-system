@@ -27,14 +27,25 @@ const PinModal: React.FC<PinModalProps> = ({ mode, targetMode, onClose, onSetPin
 
   const getDescription = () => {
     if (mode === 'set-teacher') return '교사 모드 접근에 사용할 4자리 숫자를 입력하세요. 이 PIN은 모든 관리 기능에 사용됩니다.';
-    if (mode === 'set-assistant') return '보조 모드 접근에 사용할 4자리 숫자를 입력하세요.';
+    if (mode === 'set-assistant') {
+        if (targetMode === 'assistant') {
+            return '보조 모드에 처음으로 접근하려면 PIN을 설정해야 합니다.';
+        }
+        return '보조 모드 접근에 사용할 4자리 숫자를 입력하세요.';
+    }
     if (targetMode === 'assistant') return '보조 모드로 전환하려면 PIN을 입력하세요.';
     return '교사 모드로 전환하려면 PIN을 입력하세요.';
   };
 
   const getButtonText = () => {
-    if (mode === 'set-teacher') return '설정하고 학생 모드로 전환';
-    if (mode === 'set-assistant') return '설정';
+    if (mode === 'set-teacher') {
+        if (targetMode === 'teacher') return '설정하고 교사 모드로 전환';
+        return '설정하고 학생 모드로 전환';
+    }
+    if (mode === 'set-assistant') {
+        if (targetMode === 'assistant') return '설정하고 보조 모드로 전환';
+        return '설정';
+    }
     return '확인';
   };
 
