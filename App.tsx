@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import type { Student, ViewMode, CombinedHistoryEntry, PinModalMode, PinType } from './types';
+import type { Student, ViewMode, CombinedHistoryEntry, PinModalMode, PinType, HistoryEntry } from './types';
 import Header from './components/Header';
 import StudentCard from './components/StudentCard';
 import AddStudentCard from './components/AddStudentCard';
@@ -9,6 +9,7 @@ import AllHistoryModal from './components/AllHistoryModal';
 import ConfirmModal from './components/ConfirmModal';
 import OverviewGrid from './components/OverviewGrid';
 import { PlusIcon } from './components/icons';
+import BulkActionForm from './components/BulkActionForm';
 
 const App: React.FC = () => {
   const [students, setStudents] = useState<Student[]>([]);
@@ -36,6 +37,9 @@ const App: React.FC = () => {
     confirmText?: string;
   }>({ isOpen: false, title: '', message: '', onConfirm: null, confirmText: '확인' });
 
+  // Selection mode state
+  const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
+  const [isTeacherSelectionMode, setIsTeacherSelectionMode] = useState(false);
 
   // Load students and PINs from localStorage on initial render
   useEffect(() => {
@@ -76,6 +80,38 @@ const App: React.FC = () => {
       console.error("PIN을 저장하는 데 실패했습니다:", error);
     }
   }, [teacherPin, assistantPin]);
+
+  // Clear selection when mode changes or when students array changes
+  useEffect(() => {
+    if (viewMode !== 'assistant') {
+      setSelectedStudentIds(new Set());
+    }
+    if (viewMode !== 'teacher') {
+        setIsTeacherSelectionMode(false);
+    }
+  }, [viewMode]);
+  
+  useEffect(() => {
+    if (!isTeacherSelectionMode) {
+        setSelectedStudentIds(new Set());
+    }
+  }, [isTeacherSelectionMode])
+
+  useEffect(() => {
+    // If students change (e.g. deletion), remove non-existent students from selection
+    setSelectedStudentIds(prev => {
+        const newSet = new Set(prev);
+        let changed = false;
+        const studentIds = new Set(students.map(s => s.id));
+        for (const id of newSet) {
+            if (!studentIds.has(id)) {
+                newSet.delete(id);
+                changed = true;
+            }
+        }
+        return changed ? newSet : prev;
+    });
+  }, [students]);
 
   const updateStateAndUndo = useCallback((newState: Student[] | ((prevState: Student[]) => Student[])) => {
     setStudents(prevState => {
@@ -228,18 +264,18 @@ const App: React.FC = () => {
         setIsSettingsModalOpen(false);
       }
     });
-  }
+  };
 
   const handleOpenAssistantPinModal = () => {
     setIsSettingsModalOpen(false);
     setPinError('');
     setPinModalMode('set-assistant');
     setIsPinModalOpen(true);
-  }
+  };
   
   const triggerFileInput = () => {
     fileInputRef.current?.click();
-  }
+  };
 
   const handleEnterStudentMode = () => {
     if (teacherPin) {
@@ -293,7 +329,7 @@ const App: React.FC = () => {
     setIsPinModalOpen(false);
     setPinError('');
     setPinTargetMode(null);
-  }
+  };
 
   const handleSetPin = (newPin: string, type: PinType) => {
     if (type === 'teacher') {
@@ -326,7 +362,7 @@ const App: React.FC = () => {
   const handleOpenAllHistory = () => {
     setIsSettingsModalOpen(false);
     setIsAllHistoryModalOpen(true);
-  }
+  };
 
   const allHistory = useMemo<CombinedHistoryEntry[]>(() => {
     return students
@@ -335,6 +371,80 @@ const App: React.FC = () => {
         )
         .sort((a, b) => b.timestamp - a.timestamp);
   }, [students]);
+
+  // Selection handlers
+  const handleToggleSelection = (studentId: string) => {
+      const isSelectionActive = viewMode === 'assistant' || (viewMode === 'teacher' && isTeacherSelectionMode);
+      if (!isSelectionActive) return;
+      
+      setSelectedStudentIds(prev => {
+          const newSet = new Set(prev);
+          if (newSet.has(studentId)) {
+              newSet.delete(studentId);
+          } else {
+              newSet.add(studentId);
+          }
+          return newSet;
+      });
+  };
+
+  const handleSelectAll = () => {
+      const isSelectionActive = viewMode === 'assistant' || (viewMode === 'teacher' && isTeacherSelectionMode);
+      if (!isSelectionActive) return;
+
+      if (selectedStudentIds.size === students.length) {
+          setSelectedStudentIds(new Set());
+      } else {
+          setSelectedStudentIds(new Set(students.map(s => s.id)));
+      }
+  };
+
+  const handleClearSelection = () => {
+      setSelectedStudentIds(new Set());
+  };
+  
+  const handleToggleTeacherSelectionMode = () => {
+    setIsTeacherSelectionMode(prev => !prev);
+  };
+
+  const handleBulkUpdate = (amount: number, reason: string, type: 'add' | 'subtract') => {
+    const isSelectionActive = viewMode === 'assistant' || (viewMode === 'teacher' && isTeacherSelectionMode);
+    if (!isSelectionActive) return;
+    
+    if (amount <= 0) {
+        alert("변경할 값을 양수로 입력해주세요.");
+        return;
+    }
+    if (!reason.trim()) {
+        alert("사유를 입력해주세요.");
+        return;
+    }
+
+    const changeToApply = type === 'add' ? Math.abs(amount) : -Math.abs(amount);
+
+    updateStateAndUndo(prevStudents => {
+        return prevStudents.map(student => {
+            if (selectedStudentIds.has(student.id)) {
+                const newHistoryEntry: HistoryEntry = {
+                    id: `history-${Date.now()}-${student.id}`,
+                    timestamp: Date.now(),
+                    change: changeToApply,
+                    reason: reason.trim(),
+                };
+                return {
+                    ...student,
+                    count: student.count + changeToApply,
+                    history: [newHistoryEntry, ...student.history],
+                };
+            }
+            return student;
+        });
+    });
+
+    handleClearSelection();
+  };
+
+  const isSelectionActive = viewMode === 'assistant' || isTeacherSelectionMode;
 
   return (
     <div className="min-h-screen font-sans">
@@ -351,6 +461,11 @@ const App: React.FC = () => {
         onRequestAssistantMode={() => handleRequestProtectedMode('assistant')}
         onExitAssistantMode={handleExitAssistantMode}
         onOpenSettings={() => setIsSettingsModalOpen(true)}
+        onSelectAll={handleSelectAll}
+        numStudents={students.length}
+        numSelected={selectedStudentIds.size}
+        isTeacherSelectionMode={isTeacherSelectionMode}
+        onToggleTeacherSelectionMode={handleToggleTeacherSelectionMode}
       />
       <input
         type="file"
@@ -381,6 +496,9 @@ const App: React.FC = () => {
                 onUpdate={handleUpdateStudent}
                 onDelete={handleDeleteStudent}
                 viewMode={viewMode}
+                isSelected={selectedStudentIds.has(student.id)}
+                onToggleSelection={handleToggleSelection}
+                isSelectionActive={isSelectionActive}
               />
             ))}
           </div>
@@ -403,6 +521,14 @@ const App: React.FC = () => {
           </div>
         )}
       </main>
+      {isSelectionActive && selectedStudentIds.size > 0 && (
+          <BulkActionForm
+              selectedCount={selectedStudentIds.size}
+              onSubmit={handleBulkUpdate}
+              onClearSelection={handleClearSelection}
+              mode={viewMode === 'teacher' ? 'add-subtract' : 'subtract-only'}
+          />
+      )}
       {isPinModalOpen && (
         <PinModal 
           mode={pinModalMode}

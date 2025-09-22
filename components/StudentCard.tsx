@@ -8,9 +8,12 @@ interface StudentCardProps {
   onUpdate: (student: Student) => void;
   onDelete: (studentId: string) => void;
   viewMode: ViewMode;
+  isSelected?: boolean;
+  onToggleSelection?: (studentId: string) => void;
+  isSelectionActive?: boolean;
 }
 
-const StudentCard: React.FC<StudentCardProps> = ({ student, onUpdate, onDelete, viewMode }) => {
+const StudentCard: React.FC<StudentCardProps> = ({ student, onUpdate, onDelete, viewMode, isSelected, onToggleSelection, isSelectionActive }) => {
   const [change, setChange] = useState<number>(1);
   const [reason, setReason] = useState('');
   const [isHistoryVisible, setHistoryVisible] = useState(false);
@@ -19,13 +22,7 @@ const StudentCard: React.FC<StudentCardProps> = ({ student, onUpdate, onDelete, 
 
   const handleSubmit = (e: FormEvent, amount: number) => {
     e.preventDefault();
-    if (viewMode === 'student') return; // Should not happen, but as a safeguard
-
-    // In assistant mode, only allow subtraction
-    if (viewMode === 'assistant' && amount > 0) {
-        alert("보조 모드에서는 차감만 가능합니다.");
-        return;
-    }
+    if (isReadOnly || isSelectionActive) return;
 
     if (!reason.trim()) {
       alert("사유를 입력해주세요.");
@@ -46,24 +43,53 @@ const StudentCard: React.FC<StudentCardProps> = ({ student, onUpdate, onDelete, 
     };
 
     onUpdate(updatedStudent);
-    // 폼 초기화
     setReason('');
   };
 
   const countColor = student.count > 0 ? 'text-green-500' : student.count < 0 ? 'text-red-500' : 'text-slate-500 dark:text-slate-400';
 
+  const handleCardClick = () => {
+    if (isSelectionActive && onToggleSelection) {
+      onToggleSelection(student.id);
+    }
+  };
+
   return (
     <>
-      <div className={`bg-white dark:bg-slate-800 rounded-lg shadow-lg overflow-hidden flex flex-col ${isReadOnly ? '' : 'transition-shadow hover:shadow-xl'}`}>
-        <div className="p-5 flex-grow">
-          <div className="flex justify-between items-start">
+      <div
+        className={`bg-white dark:bg-slate-800 rounded-lg shadow-lg overflow-hidden flex flex-col relative transition-all duration-200 ${isSelectionActive ? 'cursor-pointer' : ''} ${isSelected ? 'ring-2 ring-indigo-500 shadow-xl scale-105' : 'hover:shadow-xl'}`}
+        onClick={handleCardClick}
+        role="button"
+        aria-pressed={isSelected}
+        tabIndex={isSelectionActive ? 0 : -1}
+        onKeyDown={(e) => {
+          if (e.key === ' ' || e.key === 'Enter') {
+            e.preventDefault();
+            handleCardClick();
+          }
+        }}
+      >
+        {isSelectionActive && (
+          <div className="absolute top-3 right-3 z-10 bg-white/50 dark:bg-slate-900/50 rounded-full pointer-events-none">
+            <input
+              type="checkbox"
+              checked={isSelected}
+              readOnly
+              className="h-6 w-6 rounded-full border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-0 focus:ring-offset-0"
+              tabIndex={-1}
+            />
+          </div>
+        )}
+
+        <div className={`p-5 flex-grow ${isSelected && isSelectionActive ? 'opacity-80' : ''}`}>
+          <div className={`flex justify-between items-start ${isSelectionActive ? 'pr-8' : ''}`}>
             <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100">{student.name}</h2>
             <div className="flex items-center gap-2">
-              <button onClick={() => setHistoryVisible(true)} className="text-slate-400 hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors" title="변경 이력 보기">
+              <button onClick={(e) => { e.stopPropagation(); setHistoryVisible(true); }} className="text-slate-400 hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors" title="변경 이력 보기">
                 <HistoryIcon className="w-5 h-5" />
               </button>
               {viewMode === 'teacher' && (
-                <button onClick={() => onDelete(student.id)} className="text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition-colors" title="학생 삭제">
+                <button onClick={(e) => { e.stopPropagation(); onDelete(student.id); }} className="text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition-colors" title="학생 삭제">
                   <TrashIcon className="w-5 h-5" />
                 </button>
               )}
@@ -72,8 +98,8 @@ const StudentCard: React.FC<StudentCardProps> = ({ student, onUpdate, onDelete, 
           <p className={`text-5xl font-mono font-bold my-4 text-center ${countColor}`}>
             {student.count}
           </p>
-          {viewMode !== 'student' && (
-            <form className="space-y-3" onSubmit={(e) => e.preventDefault()}>
+          {!isReadOnly && !isSelectionActive && (
+            <form className="space-y-3" onSubmit={(e) => e.preventDefault()} onClick={e => e.stopPropagation()}>
               <div>
                 <label htmlFor={`reason-${student.id}`} className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">사유</label>
                 <input
@@ -110,8 +136,13 @@ const StudentCard: React.FC<StudentCardProps> = ({ student, onUpdate, onDelete, 
               </div>
             </form>
           )}
+           { isSelectionActive && (
+            <div className="text-center text-slate-500 dark:text-slate-400 h-full flex items-center justify-center min-h-[180px]">
+                <p>카드를 클릭하여 선택</p>
+            </div>
+          )}
         </div>
-        <div className="bg-slate-50 dark:bg-slate-700/50 px-5 py-3 text-xs text-slate-500 dark:text-slate-400">
+        <div className={`bg-slate-50 dark:bg-slate-700/50 px-5 py-3 text-xs text-slate-500 dark:text-slate-400 ${isSelected && isSelectionActive ? 'opacity-80' : ''}`}>
           마지막 변경: {student.history.length > 0 ? new Date(student.history[0].timestamp).toLocaleString('ko-KR') : '없음'}
         </div>
       </div>
